@@ -1,101 +1,224 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Image from "next/image";
 
-export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+// ---------------------------------------------------------------------------
+// First City Bank — root route (splash -> welcome -> login)
+// This is now the app's entry point, since the app is meant to be saved
+// to a home screen and opened like a native app rather than a website.
+// The marketing/landing content lives at /about instead.
+// ---------------------------------------------------------------------------
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+const STEP = { SPLASH: 0, WELCOME: 1, LOGIN: 2 };
+
+export default function AuthFlow() {
+  const [step, setStep] = useState(STEP.SPLASH);
+  const [accountNumber, setAccountNumber] = useState("");
+  const [passcode, setPasscode] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (step !== STEP.SPLASH) return;
+    const t = setTimeout(() => setStep(STEP.WELCOME), 1600);
+    return () => clearTimeout(t);
+  }, [step]);
+
+  function handleLogin(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    // Replace with real Supabase auth call.
+    setTimeout(() => {
+      setSubmitting(false);
+      // router.push("/dashboard")
+      alert("Would route to /dashboard here.");
+    }, 900);
+  }
+
+  return (
+    <main className="frame">
+      <style>{`
+        .frame {
+          max-width: 420px;
+          margin: 0 auto;
+          min-height: 100vh;
+          position: relative;
+          overflow: hidden;
+        }
+        .screen {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          flex-direction: column;
+          padding: 32px 24px;
+          opacity: 0;
+          transform: translateY(8px);
+          pointer-events: none;
+          transition: opacity 0.45s ease, transform 0.45s ease;
+          min-height: 100vh;
+        }
+        .screen.is-active {
+          opacity: 1;
+          transform: translateY(0);
+          pointer-events: auto;
+          position: relative;
+        }
+        .splash {
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+          gap: 20px;
+        }
+        .splash__title { font-size: 22px; line-height: 1.4; }
+        .splash__title strong { color: var(--brass); }
+
+        .welcome__hero {
+          flex: 1;
+          border-radius: 12px;
+          background: radial-gradient(circle at 50% 30%, var(--panel) 0%, var(--ink) 70%);
+          border: 1px solid var(--panel-line);
+          display: flex;
+          flex-direction: column;
+          justify-content: flex-end;
+          padding: 28px 22px;
+          margin-top: 24px;
+          position: relative;
+          overflow: hidden;
+        }
+        .welcome__logo-wrap {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          opacity: 0.9;
+          pointer-events: none;
+        }
+        .welcome__logo-wrap img { width: 78%; height: auto; }
+        .welcome__scrim {
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(180deg, transparent 30%, var(--ink) 90%);
+          opacity: 0.92;
+        }
+        .welcome__content { position: relative; z-index: 1; }
+        .welcome__eyebrow {
+          font-size: 12px;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: var(--brass);
+          margin-bottom: 12px;
+        }
+        .welcome__title { font-size: 30px; line-height: 1.15; }
+        .welcome__actions {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          margin-top: 20px;
+        }
+        .welcome__actions button { width: 100%; }
+        .welcome__footnote {
+          text-align: center;
+          font-size: 11px;
+          color: var(--parchment-dim);
+          margin-top: 18px;
+        }
+
+        .login__back {
+          color: var(--brass);
+          font-size: 20px;
+          margin-bottom: 24px;
+          cursor: pointer;
+          width: fit-content;
+          background: none;
+          border: none;
+        }
+        .login__title { font-size: 24px; margin-bottom: 4px; }
+        .login__subtitle { font-size: 14px; color: var(--parchment-dim); margin-bottom: 28px; }
+        .field { margin-bottom: 20px; }
+        .field__label {
+          display: flex;
+          justify-content: space-between;
+          font-size: 13px;
+          margin-bottom: 8px;
+        }
+        .field__label a { color: var(--brass); text-decoration: none; }
+        .field input {
+          width: 100%;
+          padding: 14px;
+          background: var(--panel);
+          border: 1px solid var(--panel-line);
+          border-radius: 8px;
+          color: var(--parchment);
+          font-size: 15px;
+        }
+        .field input:focus { outline: none; border-color: var(--brass); }
+        .login__submit { width: 100%; margin-top: 8px; }
+        .login__submit:disabled { opacity: 0.6; }
+      `}</style>
+
+      <div className={`screen splash ${step === STEP.SPLASH ? "is-active" : ""}`}>
+        <Image src="/logo-transparent.png" alt="First City Bank" width={110} height={90} />
+        <div className="splash__title display">
+          Welcome to the
+          <br />
+          <strong>First City Bank</strong> app
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+      </div>
+
+      <div className={`screen ${step === STEP.WELCOME ? "is-active" : ""}`}>
+        <div className="welcome__hero">
+          <div className="welcome__logo-wrap">
+            <Image src="/logo-transparent.png" alt="First City Bank" width={280} height={230} />
+          </div>
+        </div>
+        <div className="welcome__actions">
+          <button className="btn-primary" onClick={() => setStep(STEP.LOGIN)}>
+            Log in
+          </button>
+          <button className="btn-secondary">Open an account</button>
+        </div>
+      </div>
+
+      <div className={`screen ${step === STEP.LOGIN ? "is-active" : ""}`}>
+        <button className="login__back" onClick={() => setStep(STEP.WELCOME)}>
+          ←
+        </button>
+        <div className="login__title display">Welcome back</div>
+        <div className="login__subtitle">Log in to your account</div>
+        <form onSubmit={handleLogin}>
+          <div className="field">
+            <div className="field__label">
+              <span>Account number</span>
+            </div>
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="Enter your account number"
+              value={accountNumber}
+              onChange={(e) => setAccountNumber(e.target.value)}
+              required
+            />
+          </div>
+          <div className="field">
+            <div className="field__label">
+              <span>Passcode</span>
+              <a href="#">Forgot passcode</a>
+            </div>
+            <input
+              type="password"
+              inputMode="numeric"
+              placeholder="Enter your passcode"
+              value={passcode}
+              onChange={(e) => setPasscode(e.target.value)}
+              required
+            />
+          </div>
+          <button className="login__submit btn-primary" type="submit" disabled={submitting}>
+            {submitting ? "Logging in…" : "Log in"}
+          </button>
+        </form>
+      </div>
+    </main>
   );
 }

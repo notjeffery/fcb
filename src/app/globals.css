@@ -2,26 +2,71 @@
 @tailwind components;
 @tailwind utilities;
 
+/* -------------------------------------------------------------------------
+   First City Bank — design tokens
+   Single fixed theme (white/light). No dark mode toggle.
+------------------------------------------------------------------------- */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --ink: #f7f5ef;
+  --panel: #ffffff;
+  --panel-line: #e3ddc9;
+  --parchment: #16263d;
+  --parchment-dim: #6b7280;
+  --brass: #9c6f37;
+  --credit: #3f8f68;
+  --debit: #b5573f;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
 }
 
+html,
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--ink);
+  color: var(--parchment);
+  font-family: "Inter", -apple-system, sans-serif;
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
+.display {
+  font-family: "Fraunces", Georgia, serif;
+}
+
+.mono {
+  font-family: "IBM Plex Mono", "Courier New", monospace;
+}
+
+.btn-primary {
+  padding: 14px 24px;
+  background: var(--brass);
+  color: var(--ink);
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn-primary:hover,
+.btn-primary:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(184, 146, 90, 0.25);
+}
+
+.btn-secondary {
+  padding: 14px 24px;
+  background: transparent;
+  color: var(--parchment);
+  border: 1px solid var(--panel-line);
+  border-radius: 8px;
+  font-size: 15px;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.btn-secondary:hover,
+.btn-secondary:focus-visible {
+  border-color: var(--parchment-dim);
 }
