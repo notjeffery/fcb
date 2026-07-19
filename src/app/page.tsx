@@ -176,7 +176,7 @@ export default function AuthFlow() {
           <button className="btn-primary" onClick={() => setStep(STEP.LOGIN)}>
             Log in
           </button>
-          <button className="btn-secondary">Open an account</button>
+          <a href="/signup" className="btn-secondary" style={{ textDecoration: "none", display: "block", textAlign: "center" }}>Open an account</a>
         </div>
       </div>
 
