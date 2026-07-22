@@ -20,14 +20,6 @@ type AccountRow = {
   balance: number;
 };
 
-type RawAccountRow = {
-  id: string;
-  account_number: string;
-  account_type: string;
-  status: string;
-  profiles: { full_name: string; email: string } | null;
-};
-
 function formatCurrency(n: number) {
   const sign = n < 0 ? "-" : "";
   return `${sign}$${Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -54,14 +46,17 @@ export default function AdminDashboard() {
       const { data: balancesData } = await supabase.from("account_balances").select("account_id, balance");
       const balanceMap = new Map((balancesData ?? []).map((b) => [b.account_id, b.balance]));
 
-      const merged: AccountRow[] = accountsData.map((a: RawAccountRow) => ({
-        id: a.id,
-        account_number: a.account_number,
-        account_type: a.account_type,
-        status: a.status,
-        profiles: a.profiles,
-        balance: balanceMap.get(a.id) ?? 0,
-      }));
+      const merged: AccountRow[] = accountsData.map((a: any) => {
+        const profile = Array.isArray(a.profiles) ? a.profiles[0] : a.profiles;
+        return {
+          id: a.id,
+          account_number: a.account_number,
+          account_type: a.account_type,
+          status: a.status,
+          profiles: profile ?? null,
+          balance: balanceMap.get(a.id) ?? 0,
+        };
+      });
 
       setAccounts(merged);
       setStatus("ready");
