@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -54,6 +56,7 @@ export default function AccountDetail() {
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [referenceNote, setReferenceNote] = useState("");
+  const [txDate, setTxDate] = useState("");
   const [posting, setPosting] = useState(false);
   const [postError, setPostError] = useState("");
 
@@ -172,6 +175,7 @@ export default function AccountDetail() {
       description,
       created_by: user?.id,
       reference_note: referenceNote || null,
+      ...(txDate ? { created_at: new Date(txDate).toISOString() } : {}),
     });
 
     if (error) {
@@ -183,6 +187,7 @@ export default function AccountDetail() {
     setAmount("");
     setDescription("");
     setReferenceNote("");
+    setTxDate("");
     setPosting(false);
     loadData();
   }
@@ -320,6 +325,10 @@ export default function AccountDetail() {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
+          </div>
+          <div className="field">
+            <label>Transaction date (optional — leave blank for right now)</label>
+            <input type="date" value={txDate} onChange={(e) => setTxDate(e.target.value)} />
           </div>
           <div className="field">
             <label>Internal reference note (admin-only, for the audit trail)</label>
