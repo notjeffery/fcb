@@ -40,7 +40,13 @@ export default function AuthFlow() {
       p_account_number: accountNumber,
     });
 
-    if (lookupError || !email) {
+    if (lookupError) {
+      setLoginError(`Lookup error: ${lookupError.message}`);
+      setSubmitting(false);
+      return;
+    }
+
+    if (!email) {
       setLoginError("We couldn't find an account with that number.");
       setSubmitting(false);
       return;
