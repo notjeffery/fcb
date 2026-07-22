@@ -53,6 +53,7 @@ export default function AccountDetail() {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
 
   const [type, setType] = useState<"credit" | "debit">("credit");
+  const [category, setCategory] = useState("Other");
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [referenceNote, setReferenceNote] = useState("");
@@ -171,7 +172,7 @@ export default function AccountDetail() {
       account_id: accountId,
       type,
       amount: parsedAmount,
-      category: "manual",
+      category,
       description,
       created_by: user?.id,
       reference_note: referenceNote || null,
@@ -316,6 +317,19 @@ export default function AccountDetail() {
               <label>Amount</label>
               <input type="text" inputMode="decimal" placeholder="$0.00" value={amount} onChange={(e) => setAmount(e.target.value)} />
             </div>
+          </div>
+          <div className="field">
+            <label>Category</label>
+            <select value={category} onChange={(e) => setCategory(e.target.value)}>
+              <option value="Income">Income</option>
+              <option value="Transfer">Transfer</option>
+              <option value="Housing">Housing</option>
+              <option value="Shopping">Shopping</option>
+              <option value="Transport">Transport</option>
+              <option value="Entertainment">Entertainment</option>
+              <option value="Interest">Interest</option>
+              <option value="Other">Other</option>
+            </select>
           </div>
           <div className="field">
             <label>Description (shown to the customer)</label>
