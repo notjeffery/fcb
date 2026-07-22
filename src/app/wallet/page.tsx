@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
 
 // ---------------------------------------------------------------------------
 // First City Bank — Wallet
@@ -358,7 +357,7 @@ export default function Wallet() {
         )}
         {marketStatus === "error" && (
           <div className="market-note">
-            Couldn't load live prices right now — check your connection or try again shortly.
+            Couldn&apos;t load live prices right now — check your connection or try again shortly.
           </div>
         )}
         {marketStatus === "ready" && market.map((coin) => (

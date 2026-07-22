@@ -80,15 +80,6 @@ export default function AddFunds() {
     }, 1000);
   }
 
-  function reset() {
-    setMethod("menu");
-    setSuccess(false);
-    setAmount("");
-    setAccountNumber("");
-    setRoutingNumber("");
-    setCardNumber("");
-  }
-
   return (
     <main className="add-funds">
       <style>{`

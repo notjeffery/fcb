@@ -250,7 +250,7 @@ export default function ReceiveMoney() {
           <IconCheck />
           <div className="success-title display">Request sent</div>
           <div className="success-body">
-            We'll let you know once {contact} responds to your request for ${amount || "0.00"}.
+            We&apos;ll let you know once {contact} responds to your request for ${amount || "0.00"}.
           </div>
           <a href="/dashboard" className="btn-primary" style={{ width: "100%", textDecoration: "none", display: "block", textAlign: "center" }}>
             Back to dashboard
