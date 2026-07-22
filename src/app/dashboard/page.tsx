@@ -438,7 +438,7 @@ export default function Dashboard() {
       `}</style>
 
       {status === "loading" && <p style={{ padding: "40px 4px" }}>Loading your account…</p>}
-      {status === "error" && <p style={{ padding: "40px 4px" }}>Couldn't find an account for this user.</p>}
+      {status === "error" && <p style={{ padding: "40px 4px" }}>Couldn&apos;t find an account for this user.</p>}
 
       {status === "ready" && account && (
         <>
