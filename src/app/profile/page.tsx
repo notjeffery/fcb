@@ -184,6 +184,7 @@ export default function Profile() {
 
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function startEdit(field: "name" | "email" | "phone", currentValue: string) {
@@ -266,7 +267,7 @@ export default function Profile() {
   }
 
   if (status === "loading") return <main style={{ padding: 24 }}>Loading…</main>;
-  if (status === "error") return <main style={{ padding: 24 }}>Couldn't load your profile.</main>;
+  if (status === "error") return <main style={{ padding: 24 }}>Couldn&apos;t load your profile.</main>;
 
   return (
     <main className="profile">

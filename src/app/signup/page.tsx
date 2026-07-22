@@ -16,7 +16,8 @@ import { createClient } from "@/lib/supabase/client";
 // the confirmation link in their inbox. This page handles both cases.
 // ---------------------------------------------------------------------------
 
-const BANK_ROUTING_NUMBER = "084106768"; // kept here only for reference — account creation now happens via the database trigger
+// Routing number ("084106768") and account creation now happen entirely
+// via the database trigger — nothing needed here on the client for that.
 
 export default function SignUp() {
   const router = useRouter();
