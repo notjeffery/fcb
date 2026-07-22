@@ -1,17 +1,17 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 // ---------------------------------------------------------------------------
 // First City Bank — Wallet
 // Card details/controls + a live crypto market watchlist (price display
-// only, not trading) via CoinGecko's free public API.
+// only, not trading) via CoinGecko's free public API. Account balance and
+// number now come from Supabase, matching the Dashboard.
 // ---------------------------------------------------------------------------
-
-const mockAccount = {
-  cardNumber: "4471",
-  balance: 12505.58,
-};
 
 const COINS = [
   { id: "bitcoin", symbol: "BTC", name: "Bitcoin" },
@@ -92,9 +92,51 @@ function IconProfile() {
 }
 
 export default function Wallet() {
+  const router = useRouter();
+  const supabase = createClient();
+
+  const [accountNumberLast4, setAccountNumberLast4] = useState("");
+  const [balance, setBalance] = useState(0);
+  const [accountStatus, setAccountStatus] = useState<"loading" | "ready" | "error">("loading");
+
   const [frozen, setFrozen] = useState(false);
   const [market, setMarket] = useState<CoinPrice[]>([]);
   const [marketStatus, setMarketStatus] = useState<"loading" | "ready" | "error">("loading");
+
+  useEffect(() => {
+    async function loadAccount() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        router.push("/");
+        return;
+      }
+
+      const { data: acct } = await supabase
+        .from("accounts")
+        .select("id, account_number")
+        .eq("user_id", user.id)
+        .single();
+
+      if (!acct) {
+        setAccountStatus("error");
+        return;
+      }
+
+      const { data: balanceRow } = await supabase
+        .from("account_balances")
+        .select("balance")
+        .eq("account_id", acct.id)
+        .maybeSingle();
+
+      setAccountNumberLast4(acct.account_number.slice(-4));
+      setBalance(balanceRow?.balance ?? 0);
+      setAccountStatus("ready");
+    }
+    loadAccount();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -130,6 +172,13 @@ export default function Wallet() {
       clearInterval(interval);
     };
   }, []);
+
+  if (accountStatus === "loading") {
+    return <main style={{ padding: 24 }}>Loading your wallet…</main>;
+  }
+  if (accountStatus === "error") {
+    return <main style={{ padding: 24 }}>Couldn&apos;t load your account.</main>;
+  }
 
   return (
     <main className="wallet">
@@ -322,12 +371,12 @@ export default function Wallet() {
           <div className="card__network">VISA</div>
         </div>
         <div className="card__number-big">
-          •••• •••• •••• {mockAccount.cardNumber}
+          •••• •••• •••• {accountNumberLast4}
         </div>
         <div className="card__bottom">
           <div>
             <div className="card__balance-label">Available balance</div>
-            <div className="card__balance">{formatCurrency(mockAccount.balance)}</div>
+            <div className="card__balance">{formatCurrency(balance)}</div>
           </div>
         </div>
       </div>
