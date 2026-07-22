@@ -16,6 +16,7 @@ import { createClient } from "@/lib/supabase/client";
 
 type Account = {
   id: string;
+  user_id: string;
   account_number: string;
   routing_number: string;
   account_type: string;
@@ -56,10 +57,17 @@ export default function AccountDetail() {
   const [posting, setPosting] = useState(false);
   const [postError, setPostError] = useState("");
 
+  const [editFullName, setEditFullName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPasscode, setEditPasscode] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState("");
+  const [editSuccess, setEditSuccess] = useState(false);
+
   async function loadData() {
     const { data: accountData } = await supabase
       .from("accounts")
-      .select("id, account_number, routing_number, account_type, status, profiles(full_name, email)")
+      .select("id, user_id, account_number, routing_number, account_type, status, profiles(full_name, email)")
       .eq("id", accountId)
       .single();
 
@@ -81,6 +89,8 @@ export default function AccountDetail() {
     }
 
     setAccount(accountData as any);
+    setEditFullName((accountData as any).profiles?.full_name ?? "");
+    setEditEmail((accountData as any).profiles?.email ?? "");
     setTransactions(txData ?? []);
     setBalance(balanceData?.balance ?? 0);
     setStatus("ready");
@@ -89,6 +99,50 @@ export default function AccountDetail() {
   useEffect(() => {
     loadData();
   }, [accountId]);
+
+  async function handleEditSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setEditError("");
+    setEditSuccess(false);
+    setEditSaving(true);
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session || !account) {
+      setEditError("Session expired — please log in again.");
+      setEditSaving(false);
+      return;
+    }
+
+    const res = await fetch("/api/admin/update-account", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        userId: account.user_id,
+        fullName: editFullName || undefined,
+        email: editEmail || undefined,
+        passcode: editPasscode || undefined,
+      }),
+    });
+
+    const result = await res.json();
+
+    if (!res.ok) {
+      setEditError(result.error ?? "Something went wrong.");
+      setEditSaving(false);
+      return;
+    }
+
+    setEditPasscode("");
+    setEditSuccess(true);
+    setEditSaving(false);
+    loadData();
+  }
 
   async function handlePost(e: React.FormEvent) {
     e.preventDefault();
@@ -208,6 +262,37 @@ export default function AccountDetail() {
           <div className="ad-balance-label">Current balance</div>
           <div className="ad-balance-value">{formatCurrency(balance)}</div>
         </div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-title">Edit account holder</div>
+        {editError && <div className="error-box">{editError}</div>}
+        {editSuccess && (
+          <div style={{ color: "var(--credit)", fontSize: 13, marginBottom: 14 }}>Changes saved.</div>
+        )}
+        <form onSubmit={handleEditSubmit}>
+          <div className="field">
+            <label>Full name</label>
+            <input type="text" value={editFullName} onChange={(e) => setEditFullName(e.target.value)} />
+          </div>
+          <div className="field">
+            <label>Email</label>
+            <input type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} />
+          </div>
+          <div className="field">
+            <label>Reset passcode (leave blank to keep current)</label>
+            <input
+              type="text"
+              placeholder="New passcode, min. 6 characters"
+              value={editPasscode}
+              onChange={(e) => setEditPasscode(e.target.value)}
+              minLength={6}
+            />
+          </div>
+          <button className="btn-primary" type="submit" disabled={editSaving}>
+            {editSaving ? "Saving…" : "Save changes"}
+          </button>
+        </form>
       </div>
 
       <div className="panel">

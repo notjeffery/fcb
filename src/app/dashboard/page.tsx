@@ -3,27 +3,29 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { createClient } from "@/lib/supabase/client";
 
 // ---------------------------------------------------------------------------
 // First City Bank — Dashboard (home)
-// Inspired by the FinSight / wallet-app reference layout: greeting header,
-// wallet card, quick actions, transaction list, bottom nav.
-// Replace mock data with real Supabase queries (account balance, recent
-// transactions) once the schema is wired up.
+// Now pulls real data: signed-in user's profile, account, balance, and
+// recent transactions from Supabase, instead of the earlier mock data.
 // ---------------------------------------------------------------------------
 
-const mockAccount = {
-  holderName: "Jeffery",
-  cardNumber: "4471",
-  balance: 12505.58,
+type AccountData = {
+  id: string;
+  accountNumberLast4: string;
+  balance: number;
+  holderName: string;
 };
 
-const mockTransactions = [
-  { id: 1, label: "Payroll deposit", category: "Income", timestamp: "2026-05-29T13:00:00Z", amount: 2450.0, type: "credit" },
-  { id: 2, label: "Uber Ride", category: "Transport", timestamp: "2026-05-29T21:15:00Z", amount: -8.75, type: "debit" },
-  { id: 3, label: "Spotify Premium", category: "Entertainment", timestamp: "2026-05-15T09:00:00Z", amount: -19.99, type: "debit" },
-  { id: 4, label: "Amazon Purchase", category: "Shopping", timestamp: "2026-05-03T17:40:00Z", amount: -120.0, type: "debit" },
-];
+type TransactionData = {
+  id: string;
+  label: string;
+  category: string;
+  timestamp: string;
+  amount: number;
+  type: "credit" | "debit";
+};
 
 function formatLocalDate(utcTimestamp: string) {
   return new Date(utcTimestamp).toLocaleDateString(undefined, {
@@ -108,17 +110,78 @@ function getGreeting() {
 
 export default function Dashboard() {
   const router = useRouter();
+  const supabase = createClient();
   const [showBalance, setShowBalance] = useState(true);
   const [greeting, setGreeting] = useState("Good morning");
-  const [formattedDates, setFormattedDates] = useState<Record<number, string>>({});
+  const [account, setAccount] = useState<AccountData | null>(null);
+  const [transactions, setTransactions] = useState<TransactionData[]>([]);
+  const [formattedDates, setFormattedDates] = useState<Record<string, string>>({});
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
 
   useEffect(() => {
     setGreeting(getGreeting());
-    const dates: Record<number, string> = {};
-    mockTransactions.forEach((tx) => {
-      dates[tx.id] = formatLocalDate(tx.timestamp);
-    });
-    setFormattedDates(dates);
+
+    async function load() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        router.push("/");
+        return;
+      }
+
+      const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", user.id).single();
+      const { data: acct } = await supabase
+        .from("accounts")
+        .select("id, account_number")
+        .eq("user_id", user.id)
+        .single();
+
+      if (!acct) {
+        setStatus("error");
+        return;
+      }
+
+      const { data: balanceRow } = await supabase
+        .from("account_balances")
+        .select("balance")
+        .eq("account_id", acct.id)
+        .maybeSingle();
+
+      const { data: txRows } = await supabase
+        .from("transactions")
+        .select("id, description, category, amount, type, created_at")
+        .eq("account_id", acct.id)
+        .order("created_at", { ascending: false })
+        .limit(4);
+
+      setAccount({
+        id: acct.id,
+        accountNumberLast4: acct.account_number.slice(-4),
+        balance: balanceRow?.balance ?? 0,
+        holderName: (profile?.full_name ?? "").split(" ")[0] || "there",
+      });
+
+      const txs: TransactionData[] = (txRows ?? []).map((t) => ({
+        id: t.id,
+        label: t.description,
+        category: t.category,
+        timestamp: t.created_at,
+        amount: t.type === "credit" ? t.amount : -t.amount,
+        type: t.type,
+      }));
+      setTransactions(txs);
+
+      const dates: Record<string, string> = {};
+      txs.forEach((tx) => {
+        dates[tx.id] = formatLocalDate(tx.timestamp);
+      });
+      setFormattedDates(dates);
+
+      setStatus("ready");
+    }
+    load();
   }, []);
 
   const masked = "•••••••";
@@ -374,84 +437,94 @@ export default function Dashboard() {
         .nav-item.is-active { color: var(--brass); }
       `}</style>
 
-      <div className="dash__header">
-        <div className="dash__greeting-row">
-          <a href="/profile" className="dash__avatar">
-            {mockAccount.holderName.charAt(0)}
-          </a>
+      {status === "loading" && <p style={{ padding: "40px 4px" }}>Loading your account…</p>}
+      {status === "error" && <p style={{ padding: "40px 4px" }}>Couldn't find an account for this user.</p>}
+
+      {status === "ready" && account && (
+        <>
+          <div className="dash__header">
+            <div className="dash__greeting-row">
+              <a href="/profile" className="dash__avatar">
+                {account.holderName.charAt(0)}
+              </a>
+              <div>
+                <div className="dash__greeting-sub">{greeting}</div>
+                <div className="dash__greeting-name">{account.holderName}</div>
+              </div>
+            </div>
+            <button className="dash__bell" aria-label="Notifications">
+              <IconBell />
+            </button>
+          </div>
+
+          <div className="dash__section-label">My wallet</div>
+
+          <div className="card" onClick={() => router.push("/wallet")} style={{ cursor: "pointer" }}>
+            <div className="card__glow" />
+            <div className="card__top">
+              <div className="card__brand">
+                <Image src="/logo-transparent.png" alt="First City Bank" width={90} height={22} style={{ height: 22, width: "auto" }} />
+              </div>
+              <div className="card__network">DEBIT</div>
+            </div>
+            <div className="card__balance-label">
+              Current balance
+              <button className="card__eye" onClick={(e) => { e.stopPropagation(); setShowBalance((s) => !s); }} aria-label="Toggle balance visibility">
+                {showBalance ? "🙈" : "👁"}
+              </button>
+            </div>
+            <div className="card__balance">
+              {showBalance ? formatCurrency(account.balance) : masked}
+            </div>
+            <div className="card__bottom">
+              <div className="card__number">
+                •••• •••• •••• {account.accountNumberLast4}
+              </div>
+              <div className="card__exp">
+                <div className="card__exp-label">Exp date</div>
+                10/28
+              </div>
+            </div>
+          </div>
+
+          <div className="actions">
+            <a href="/transfer/send" className="action">
+              <div className="action__icon"><IconSend /></div>
+              <div className="action__label">Send</div>
+            </a>
+            <a href="/transfer/receive" className="action">
+              <div className="action__icon"><IconRequest /></div>
+              <div className="action__label">Request</div>
+            </a>
+            <a href="/transfer/add-funds" className="action">
+              <div className="action__icon"><IconAdd /></div>
+              <div className="action__label">Add funds</div>
+            </a>
+          </div>
+
+          <div className="tx-header">
+            <div className="dash__section-label" style={{ marginBottom: 0 }}>Transactions</div>
+            <a href="/analytics">View all</a>
+          </div>
           <div>
-            <div className="dash__greeting-sub">{greeting}</div>
-            <div className="dash__greeting-name">{mockAccount.holderName}</div>
+            {transactions.length === 0 && (
+              <p style={{ color: "var(--parchment-dim)", fontSize: 14 }}>No transactions yet.</p>
+            )}
+            {transactions.map((tx) => (
+              <div className="tx-row" key={tx.id}>
+                <div className="tx-icon" />
+                <div className="tx-body">
+                  <div className="tx-label">{tx.label}</div>
+                  <div className="tx-meta">{tx.category} · {formattedDates[tx.id] ?? "…"}</div>
+                </div>
+                <div className={`tx-amount ${tx.type === "credit" ? "is-credit" : "is-debit"}`}>
+                  {formatCurrency(tx.amount)}
+                </div>
+              </div>
+            ))}
           </div>
-        </div>
-        <button className="dash__bell" aria-label="Notifications">
-          <IconBell />
-        </button>
-      </div>
-
-      <div className="dash__section-label">My wallet</div>
-
-      <div className="card" onClick={() => router.push("/wallet")} style={{ cursor: "pointer" }}>
-        <div className="card__glow" />
-        <div className="card__top">
-          <div className="card__brand">
-            <Image src="/logo-transparent.png" alt="First City Bank" width={90} height={22} style={{ height: 22, width: "auto" }} />
-          </div>
-          <div className="card__network">DEBIT</div>
-        </div>
-        <div className="card__balance-label">
-          Current balance
-          <button className="card__eye" onClick={(e) => { e.stopPropagation(); setShowBalance((s) => !s); }} aria-label="Toggle balance visibility">
-            {showBalance ? "🙈" : "👁"}
-          </button>
-        </div>
-        <div className="card__balance">
-          {showBalance ? formatCurrency(mockAccount.balance) : masked}
-        </div>
-        <div className="card__bottom">
-          <div className="card__number">
-            •••• •••• •••• {mockAccount.cardNumber}
-          </div>
-          <div className="card__exp">
-            <div className="card__exp-label">Exp date</div>
-            10/28
-          </div>
-        </div>
-      </div>
-
-      <div className="actions">
-        <a href="/transfer/send" className="action">
-          <div className="action__icon"><IconSend /></div>
-          <div className="action__label">Send</div>
-        </a>
-        <a href="/transfer/receive" className="action">
-          <div className="action__icon"><IconRequest /></div>
-          <div className="action__label">Request</div>
-        </a>
-        <a href="/transfer/add-funds" className="action">
-          <div className="action__icon"><IconAdd /></div>
-          <div className="action__label">Add funds</div>
-        </a>
-      </div>
-
-      <div className="tx-header">
-        <div className="dash__section-label" style={{ marginBottom: 0 }}>Transactions</div>
-        <a href="#">View all</a>
-      </div>
-      <div>
-        {mockTransactions.map((tx) => (
-          <div className="tx-row" key={tx.id}>
-            <div className="tx-icon" />
-            <div className="tx-body">
-              <div className="tx-label">{tx.label}</div>
-              <div className="tx-meta">{tx.category} · {formattedDates[tx.id] ?? "…"}</div>
-            </div>
-            <div className={`tx-amount ${tx.type === "credit" ? "is-credit" : "is-debit"}`}>
-              {formatCurrency(tx.amount)}
-            </div>
-          </div>
-        ))}
-      </div>
+        </>
+      )}
 
       <nav className="bottom-nav">
         <a href="/dashboard" className="nav-item is-active">

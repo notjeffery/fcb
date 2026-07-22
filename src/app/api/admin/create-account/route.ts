@@ -51,37 +51,39 @@ export async function POST(request: NextRequest) {
   const { fullName, email, passcode, accountNumber, openingBalance } = await request.json();
 
   if (!fullName || !email || !passcode || !accountNumber) {
+    console.error("Create account: missing required fields.", { fullName, email, passcodeProvided: !!passcode, accountNumber });
     return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
   }
 
   const admin = createAdminClient();
 
+  // The account row (account_number, routing_number) is created
+  // automatically by the database trigger the moment this user is
+  // created — passing account_number via metadata lets the trigger use
+  // this specific number instead of generating a random one.
   const { data: newUser, error: createUserError } = await admin.auth.admin.createUser({
     email,
     password: passcode,
     email_confirm: true, // admin-created accounts skip email verification
-    user_metadata: { full_name: fullName },
+    user_metadata: { full_name: fullName, account_number: accountNumber },
   });
 
   if (createUserError || !newUser.user) {
+    console.error("Create account: createUser failed.", createUserError);
     return NextResponse.json({ error: createUserError?.message ?? "Could not create user." }, { status: 400 });
   }
 
-  const BANK_ROUTING_NUMBER = "084106768"; // placeholder — use the real assigned routing number once chartered/partnered
-
-  const { data: newAccount, error: accountError } = await admin
+  const { data: newAccount, error: accountLookupError } = await admin
     .from("accounts")
-    .insert({
-      user_id: newUser.user.id,
-      account_number: accountNumber,
-      routing_number: BANK_ROUTING_NUMBER,
-      account_type: "checking",
-    })
     .select("id")
+    .eq("user_id", newUser.user.id)
     .single();
 
-  if (accountError || !newAccount) {
-    return NextResponse.json({ error: accountError?.message ?? "Could not create account." }, { status: 400 });
+  if (accountLookupError || !newAccount) {
+    return NextResponse.json(
+      { error: "User was created, but the account row wasn't found — check the database trigger." },
+      { status: 500 }
+    );
   }
 
   if (openingBalance && openingBalance > 0) {

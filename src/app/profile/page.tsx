@@ -1,23 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 // ---------------------------------------------------------------------------
 // First City Bank — Profile
-// Account details, personal info, security, statements, support, legal —
-// the standard sections a traditional bank's app/site includes. Mock data
-// throughout; wire up to Supabase (user profile + account tables) later.
+// Real data now: profile + account info from Supabase. Full name, email,
+// and passcode are editable directly by the signed-in user. Email changes
+// go through Supabase's normal confirmation-email flow — the new address
+// isn't active until the user clicks the link sent to it.
 // ---------------------------------------------------------------------------
-
-const mockUser = {
-  name: "Jeffery Onyenwe",
-  email: "jconyenwe@gmail.com",
-  phone: "+234 •• ••• ••90",
-  memberSince: "2024",
-  accountNumber: "2280515409",
-  routingNumber: "084106768",
-  accountType: "Personal Checking",
-};
 
 function IconChevron() {
   return (
@@ -67,221 +60,315 @@ function IconProfile() {
   );
 }
 
-function Row({ label, hint, onClick, right }: { label: string; hint?: string; onClick?: () => void; right?: React.ReactNode }) {
+function EditableRow({
+  label,
+  value,
+  editing,
+  onEdit,
+  onChange,
+  onSave,
+  onCancel,
+  saving,
+  inputType = "text",
+}: {
+  label: string;
+  value: string;
+  editing: boolean;
+  onEdit: () => void;
+  onChange: (v: string) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  saving: boolean;
+  inputType?: string;
+}) {
+  if (editing) {
+    return (
+      <div className="row row--editing">
+        <div className="row__edit-form">
+          <label className="row__edit-label">{label}</label>
+          <input
+            className="row__edit-input"
+            type={inputType}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            autoFocus
+          />
+          <div className="row__edit-actions">
+            <button className="row__edit-save" onClick={onSave} disabled={saving}>
+              {saving ? "Saving…" : "Save"}
+            </button>
+            <button className="row__edit-cancel" onClick={onCancel} disabled={saving}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
   return (
-    <div className="row" onClick={onClick} role={onClick ? "button" : undefined}>
+    <div className="row" onClick={onEdit} role="button">
       <div className="row__left">
         <div className="row__label">{label}</div>
-        {hint && <div className="row__hint">{hint}</div>}
+        <div className="row__hint">{value || "Not set"}</div>
       </div>
-      {right ?? <span className="row__chevron"><IconChevron /></span>}
+      <span className="row__chevron"><IconChevron /></span>
     </div>
   );
 }
 
-function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
-  return (
-    <button className="toggle" data-on={on} onClick={onToggle} aria-pressed={on}>
-      <span className="toggle__knob" />
-    </button>
-  );
-}
-
 export default function Profile() {
+  const router = useRouter();
+  const supabase = createClient();
+
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [memberSince, setMemberSince] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [routingNumber, setRoutingNumber] = useState("");
+  const [accountType, setAccountType] = useState("");
+
+  const [editingField, setEditingField] = useState<"name" | "email" | "phone" | null>(null);
+  const [draftValue, setDraftValue] = useState("");
+  const [savingField, setSavingField] = useState(false);
+  const [fieldError, setFieldError] = useState("");
+
+  const [passcodeMode, setPasscodeMode] = useState(false);
+  const [newPasscode, setNewPasscode] = useState("");
+  const [confirmPasscode, setConfirmPasscode] = useState("");
+  const [passcodeSaving, setPasscodeSaving] = useState(false);
+  const [passcodeError, setPasscodeError] = useState("");
+  const [passcodeSuccess, setPasscodeSuccess] = useState(false);
+
   const [copied, setCopied] = useState(false);
   const [biometric, setBiometric] = useState(true);
   const [pushNotifs, setPushNotifs] = useState(true);
 
+  async function loadData() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      router.push("/");
+      return;
+    }
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name, email, phone, member_since")
+      .eq("id", user.id)
+      .single();
+
+    const { data: account } = await supabase
+      .from("accounts")
+      .select("account_number, routing_number, account_type")
+      .eq("user_id", user.id)
+      .single();
+
+    if (!profile || !account) {
+      setStatus("error");
+      return;
+    }
+
+    setFullName(profile.full_name);
+    setEmail(profile.email);
+    setPhone(profile.phone ?? "");
+    setMemberSince(new Date(profile.member_since).getFullYear().toString());
+    setAccountNumber(account.account_number);
+    setRoutingNumber(account.routing_number);
+    setAccountType(account.account_type);
+    setStatus("ready");
+  }
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  function startEdit(field: "name" | "email" | "phone", currentValue: string) {
+    setEditingField(field);
+    setDraftValue(currentValue);
+    setFieldError("");
+  }
+
+  async function saveField() {
+    setSavingField(true);
+    setFieldError("");
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    try {
+      if (editingField === "name") {
+        const { error } = await supabase.from("profiles").update({ full_name: draftValue }).eq("id", user.id);
+        if (error) throw error;
+        setFullName(draftValue);
+      } else if (editingField === "phone") {
+        const { error } = await supabase.from("profiles").update({ phone: draftValue }).eq("id", user.id);
+        if (error) throw error;
+        setPhone(draftValue);
+      } else if (editingField === "email") {
+        // This sends a confirmation link to the new address — the email
+        // doesn't actually change until the user clicks it.
+        const { error } = await supabase.auth.updateUser({ email: draftValue });
+        if (error) throw error;
+        alert("Check your new email address for a confirmation link — the change won't apply until you click it.");
+      }
+      setEditingField(null);
+    } catch (err) {
+      setFieldError(err instanceof Error ? err.message : "Couldn't save that change.");
+    } finally {
+      setSavingField(false);
+    }
+  }
+
+  async function savePasscode(e: React.FormEvent) {
+    e.preventDefault();
+    setPasscodeError("");
+    setPasscodeSuccess(false);
+
+    if (newPasscode !== confirmPasscode) {
+      setPasscodeError("Passcodes don't match.");
+      return;
+    }
+    if (newPasscode.length < 6) {
+      setPasscodeError("Passcode must be at least 6 characters.");
+      return;
+    }
+
+    setPasscodeSaving(true);
+    const { error } = await supabase.auth.updateUser({ password: newPasscode });
+    setPasscodeSaving(false);
+
+    if (error) {
+      setPasscodeError(error.message);
+      return;
+    }
+
+    setNewPasscode("");
+    setConfirmPasscode("");
+    setPasscodeSuccess(true);
+    setPasscodeMode(false);
+  }
+
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    router.push("/");
+  }
+
   function copyAccountNumber() {
-    navigator.clipboard?.writeText(mockUser.accountNumber);
+    navigator.clipboard?.writeText(accountNumber);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }
 
+  if (status === "loading") return <main style={{ padding: 24 }}>Loading…</main>;
+  if (status === "error") return <main style={{ padding: 24 }}>Couldn't load your profile.</main>;
+
   return (
     <main className="profile">
       <style>{`
-        .profile {
-          max-width: 420px;
-          margin: 0 auto;
-          min-height: 100vh;
-          padding: 28px 20px 100px;
-        }
-
-        .p-header {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-          margin-bottom: 24px;
-        }
+        .profile { max-width: 420px; margin: 0 auto; min-height: 100vh; padding: 28px 20px 100px; }
+        .p-header { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; }
         .p-avatar {
-          width: 56px;
-          height: 56px;
-          border-radius: 50%;
-          background: var(--panel);
-          border: 1px solid var(--panel-line);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-family: 'Fraunces', Georgia, serif;
-          font-size: 22px;
-          color: var(--brass);
+          width: 56px; height: 56px; border-radius: 50%;
+          background: var(--panel); border: 1px solid var(--panel-line);
+          display: flex; align-items: center; justify-content: center;
+          font-family: 'Fraunces', Georgia, serif; font-size: 22px; color: var(--brass);
         }
         .p-name { font-size: 17px; font-weight: 600; }
         .p-since { font-size: 12px; color: var(--parchment-dim); }
 
         .account-card {
           background: linear-gradient(135deg, var(--panel) 0%, var(--ink) 100%);
-          border: 1px solid var(--panel-line);
-          border-radius: 14px;
-          padding: 18px 20px;
-          margin-bottom: 28px;
+          border: 1px solid var(--panel-line); border-radius: 14px; padding: 18px 20px; margin-bottom: 28px;
         }
-        .account-card__type {
-          font-size: 12px;
-          color: var(--parchment-dim);
-          margin-bottom: 10px;
-        }
-        .account-card__line {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 7px 0;
-        }
+        .account-card__type { font-size: 12px; color: var(--parchment-dim); margin-bottom: 10px; text-transform: capitalize; }
+        .account-card__line { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; }
         .account-card__label { font-size: 12px; color: var(--parchment-dim); }
-        .account-card__value {
-          font-family: 'IBM Plex Mono', monospace;
-          font-size: 14px;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-        .copy-btn {
-          background: none;
-          border: none;
-          color: var(--brass);
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-        }
-        .copied-tag {
-          font-size: 11px;
-          color: var(--credit);
-        }
+        .account-card__value { font-family: 'IBM Plex Mono', monospace; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+        .copy-btn { background: none; border: none; color: var(--brass); cursor: pointer; display: flex; align-items: center; }
+        .copied-tag { font-size: 11px; color: var(--credit); }
 
         .section-label {
-          font-size: 12px;
-          text-transform: uppercase;
-          letter-spacing: 0.06em;
-          color: var(--parchment-dim);
-          margin: 24px 0 8px;
+          font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em;
+          color: var(--parchment-dim); margin: 24px 0 8px;
         }
         .section-label:first-of-type { margin-top: 0; }
 
-        .list {
-          background: var(--panel);
-          border: 1px solid var(--panel-line);
-          border-radius: 12px;
-          overflow: hidden;
-        }
-        .row {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 14px 16px;
-          border-bottom: 1px solid var(--panel-line);
-          cursor: pointer;
-        }
+        .list { background: var(--panel); border: 1px solid var(--panel-line); border-radius: 12px; overflow: hidden; }
+        .row { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--panel-line); cursor: pointer; }
         .row:last-child { border-bottom: none; }
         .row__label { font-size: 14px; }
         .row__hint { font-size: 12px; color: var(--parchment-dim); margin-top: 2px; }
         .row__chevron { color: var(--parchment-dim); display: flex; }
 
+        .row--editing { padding: 14px 16px; border-bottom: 1px solid var(--panel-line); cursor: default; }
+        .row__edit-form { width: 100%; }
+        .row__edit-label { display: block; font-size: 12px; color: var(--parchment-dim); margin-bottom: 6px; }
+        .row__edit-input {
+          width: 100%; padding: 10px 12px; background: var(--ink); border: 1px solid var(--panel-line);
+          border-radius: 6px; color: var(--parchment); font-size: 14px; margin-bottom: 10px;
+        }
+        .row__edit-input:focus { outline: none; border-color: var(--brass); }
+        .row__edit-actions { display: flex; gap: 10px; }
+        .row__edit-save {
+          background: var(--brass); color: var(--ink); border: none; border-radius: 6px;
+          padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
+        }
+        .row__edit-cancel {
+          background: none; color: var(--parchment-dim); border: 1px solid var(--panel-line);
+          border-radius: 6px; padding: 8px 16px; font-size: 13px; cursor: pointer;
+        }
+        .field-error { font-size: 12px; color: var(--debit); margin-top: 8px; }
+
         .toggle {
-          position: relative;
-          width: 44px;
-          height: 26px;
-          border-radius: 999px;
-          background: var(--panel-line);
-          border: none;
-          cursor: pointer;
-          transition: background 0.2s ease;
-          flex-shrink: 0;
+          position: relative; width: 44px; height: 26px; border-radius: 999px;
+          background: var(--panel-line); border: none; cursor: pointer; transition: background 0.2s ease; flex-shrink: 0;
         }
         .toggle[data-on="true"] { background: var(--brass); }
         .toggle__knob {
-          position: absolute;
-          top: 3px;
-          left: 3px;
-          width: 20px;
-          height: 20px;
-          border-radius: 50%;
-          background: var(--parchment);
-          transition: transform 0.2s ease;
+          position: absolute; top: 3px; left: 3px; width: 20px; height: 20px;
+          border-radius: 50%; background: var(--parchment); transition: transform 0.2s ease;
         }
         .toggle[data-on="true"] .toggle__knob { transform: translateX(18px); }
 
-        .signout {
-          width: 100%;
-          margin-top: 28px;
-          padding: 14px;
-          background: transparent;
-          border: 1px solid var(--debit);
-          color: var(--debit);
-          border-radius: 10px;
-          font-size: 15px;
-          cursor: pointer;
+        .passcode-form { padding: 14px 16px; }
+        .passcode-form input {
+          width: 100%; padding: 10px 12px; background: var(--ink); border: 1px solid var(--panel-line);
+          border-radius: 6px; color: var(--parchment); font-size: 14px; margin-bottom: 10px;
         }
+        .passcode-success { font-size: 12px; color: var(--credit); padding: 0 16px 14px; }
 
-        .app-version {
-          text-align: center;
-          font-size: 11px;
-          color: var(--parchment-dim);
-          margin-top: 20px;
-        }
+        .signout { width: 100%; margin-top: 28px; padding: 14px; background: transparent; border: 1px solid var(--debit); color: var(--debit); border-radius: 10px; font-size: 15px; cursor: pointer; }
+        .app-version { text-align: center; font-size: 11px; color: var(--parchment-dim); margin-top: 20px; }
 
         .bottom-nav {
-          position: fixed;
-          bottom: 0;
-          left: 0;
-          right: 0;
-          max-width: 420px;
-          margin: 0 auto;
-          background: var(--panel);
-          border-top: 1px solid var(--panel-line);
-          display: flex;
-          justify-content: space-around;
-          padding: 14px 0 18px;
+          position: fixed; bottom: 0; left: 0; right: 0; max-width: 420px; margin: 0 auto;
+          background: var(--panel); border-top: 1px solid var(--panel-line);
+          display: flex; justify-content: space-around; padding: 14px 0 18px;
         }
-        .nav-item {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 4px;
-          color: var(--parchment-dim);
-          font-size: 11px;
-          background: none;
-          border: none;
-          cursor: pointer;
-          text-decoration: none;
-        }
+        .nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--parchment-dim); font-size: 11px; background: none; border: none; cursor: pointer; text-decoration: none; }
         .nav-item.is-active { color: var(--brass); }
       `}</style>
 
       <div className="p-header">
-        <div className="p-avatar">{mockUser.name.charAt(0)}</div>
+        <div className="p-avatar">{fullName.charAt(0)}</div>
         <div>
-          <div className="p-name">{mockUser.name}</div>
-          <div className="p-since">Member since {mockUser.memberSince}</div>
+          <div className="p-name">{fullName}</div>
+          <div className="p-since">Member since {memberSince}</div>
         </div>
       </div>
 
       <div className="account-card">
-        <div className="account-card__type">{mockUser.accountType}</div>
+        <div className="account-card__type">{accountType} account</div>
         <div className="account-card__line">
           <span className="account-card__label">Account number</span>
           <span className="account-card__value">
-            {mockUser.accountNumber}
+            {accountNumber}
             <button className="copy-btn" onClick={copyAccountNumber} aria-label="Copy account number">
               <IconCopy />
             </button>
@@ -290,71 +377,133 @@ export default function Profile() {
         </div>
         <div className="account-card__line">
           <span className="account-card__label">Routing number</span>
-          <span className="account-card__value">{mockUser.routingNumber}</span>
+          <span className="account-card__value">{routingNumber}</span>
         </div>
       </div>
 
       <div className="section-label">Personal information</div>
       <div className="list">
-        <Row label="Email" hint={mockUser.email} />
-        <Row label="Phone number" hint={mockUser.phone} />
-        <Row label="Home address" hint="Add an address" />
+        <EditableRow
+          label="Full name"
+          value={fullName}
+          editing={editingField === "name"}
+          onEdit={() => startEdit("name", fullName)}
+          onChange={setDraftValue}
+          onSave={saveField}
+          onCancel={() => setEditingField(null)}
+          saving={savingField}
+        />
+        {editingField === "name" && fieldError && <div className="field-error" style={{ padding: "0 16px 10px" }}>{fieldError}</div>}
+
+        <EditableRow
+          label="Email"
+          value={email}
+          editing={editingField === "email"}
+          onEdit={() => startEdit("email", email)}
+          onChange={setDraftValue}
+          onSave={saveField}
+          onCancel={() => setEditingField(null)}
+          saving={savingField}
+          inputType="email"
+        />
+        {editingField === "email" && fieldError && <div className="field-error" style={{ padding: "0 16px 10px" }}>{fieldError}</div>}
+
+        <EditableRow
+          label="Phone number"
+          value={phone}
+          editing={editingField === "phone"}
+          onEdit={() => startEdit("phone", phone)}
+          onChange={setDraftValue}
+          onSave={saveField}
+          onCancel={() => setEditingField(null)}
+          saving={savingField}
+        />
       </div>
 
       <div className="section-label">Security</div>
       <div className="list">
-        <Row label="Change passcode" />
-        <Row label="Two-factor authentication" hint="Recommended" />
-        <Row
-          label="Biometric login"
-          right={<Toggle on={biometric} onToggle={() => setBiometric((b) => !b)} />}
-        />
+        {!passcodeMode ? (
+          <div className="row" onClick={() => { setPasscodeMode(true); setPasscodeSuccess(false); }}>
+            <div className="row__left">
+              <div className="row__label">Change passcode</div>
+            </div>
+            <span className="row__chevron"><IconChevron /></span>
+          </div>
+        ) : (
+          <form className="passcode-form" onSubmit={savePasscode}>
+            {passcodeError && <div className="field-error" style={{ marginBottom: 10 }}>{passcodeError}</div>}
+            <input
+              type="password"
+              placeholder="New passcode"
+              value={newPasscode}
+              onChange={(e) => setNewPasscode(e.target.value)}
+              minLength={6}
+            />
+            <input
+              type="password"
+              placeholder="Confirm new passcode"
+              value={confirmPasscode}
+              onChange={(e) => setConfirmPasscode(e.target.value)}
+              minLength={6}
+            />
+            <div style={{ display: "flex", gap: 10 }}>
+              <button className="row__edit-save" type="submit" disabled={passcodeSaving}>
+                {passcodeSaving ? "Saving…" : "Save"}
+              </button>
+              <button
+                className="row__edit-cancel"
+                type="button"
+                onClick={() => { setPasscodeMode(false); setNewPasscode(""); setConfirmPasscode(""); }}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
+        {passcodeSuccess && <div className="passcode-success">Passcode updated.</div>}
+        <div className="row">
+          <div className="row__left">
+            <div className="row__label">Biometric login</div>
+          </div>
+          <button className="toggle" data-on={biometric} onClick={() => setBiometric((b) => !b)} aria-pressed={biometric}>
+            <span className="toggle__knob" />
+          </button>
+        </div>
       </div>
 
       <div className="section-label">Banking</div>
       <div className="list">
-        <Row label="Cards & wallet" />
-        <Row label="Statements & documents" />
-        <Row label="Beneficiaries" hint="Manage saved recipients" />
-        <Row
-          label="Push notifications"
-          right={<Toggle on={pushNotifs} onToggle={() => setPushNotifs((p) => !p)} />}
-        />
-      </div>
-
-      <div className="section-label">Support</div>
-      <div className="list">
-        <Row label="Help center" />
-        <Row label="Contact support" />
-        <Row label="Terms of service" />
-        <Row label="Privacy policy" />
+        <div className="row" onClick={() => router.push("/wallet")}>
+          <div className="row__left"><div className="row__label">Cards & wallet</div></div>
+          <span className="row__chevron"><IconChevron /></span>
+        </div>
+        <div className="row">
+          <div className="row__left"><div className="row__label">Push notifications</div></div>
+          <button className="toggle" data-on={pushNotifs} onClick={() => setPushNotifs((p) => !p)} aria-pressed={pushNotifs}>
+            <span className="toggle__knob" />
+          </button>
+        </div>
       </div>
 
       <div className="section-label">Preferences</div>
       <div className="list">
-        <Row label="App settings" hint="Theme, display" />
+        <div className="row" onClick={() => router.push("/settings")}>
+          <div className="row__left">
+            <div className="row__label">App settings</div>
+            <div className="row__hint">Theme, display</div>
+          </div>
+          <span className="row__chevron"><IconChevron /></span>
+        </div>
       </div>
 
-      <button className="signout">Sign out</button>
-      <div className="app-version">First City Bank — v0.1.0</div>
+      <button className="signout" onClick={handleSignOut}>Sign out</button>
+      <div className="app-version">First City Bank — v0.1.0 (working build)</div>
 
       <nav className="bottom-nav">
-        <a href="/dashboard" className="nav-item">
-          <IconHome />
-          Home
-        </a>
-        <a href="/analytics" className="nav-item">
-          <IconAnalytics />
-          Analytics
-        </a>
-        <a href="/wallet" className="nav-item">
-          <IconWallet />
-          Wallet
-        </a>
-        <a href="/profile" className="nav-item is-active">
-          <IconProfile />
-          Profile
-        </a>
+        <a href="/dashboard" className="nav-item"><IconHome />Home</a>
+        <a href="/analytics" className="nav-item"><IconAnalytics />Analytics</a>
+        <a href="/wallet" className="nav-item"><IconWallet />Wallet</a>
+        <a href="/profile" className="nav-item is-active"><IconProfile />Profile</a>
       </nav>
     </main>
   );

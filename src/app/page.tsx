@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 // ---------------------------------------------------------------------------
 // First City Bank — root route (splash -> welcome -> login)
@@ -13,10 +15,13 @@ import Image from "next/image";
 const STEP = { SPLASH: 0, WELCOME: 1, LOGIN: 2 };
 
 export default function AuthFlow() {
+  const router = useRouter();
+  const supabase = createClient();
   const [step, setStep] = useState(STEP.SPLASH);
   const [accountNumber, setAccountNumber] = useState("");
   const [passcode, setPasscode] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [loginError, setLoginError] = useState("");
 
   useEffect(() => {
     if (step !== STEP.SPLASH) return;
@@ -24,15 +29,33 @@ export default function AuthFlow() {
     return () => clearTimeout(t);
   }, [step]);
 
-  function handleLogin(e: React.FormEvent) {
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
+    setLoginError("");
     setSubmitting(true);
-    // Replace with real Supabase auth call.
-    setTimeout(() => {
+
+    const { data: email, error: lookupError } = await supabase.rpc("get_email_by_account_number", {
+      p_account_number: accountNumber,
+    });
+
+    if (lookupError || !email) {
+      setLoginError("We couldn't find an account with that number.");
       setSubmitting(false);
-      // router.push("/dashboard")
-      alert("Would route to /dashboard here.");
-    }, 900);
+      return;
+    }
+
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password: passcode,
+    });
+
+    if (signInError) {
+      setLoginError("Incorrect account number or passcode.");
+      setSubmitting(false);
+      return;
+    }
+
+    router.push("/dashboard");
   }
 
   return (
@@ -135,6 +158,15 @@ export default function AuthFlow() {
         }
         .login__title { font-size: 24px; margin-bottom: 4px; }
         .login__subtitle { font-size: 14px; color: var(--parchment-dim); margin-bottom: 28px; }
+        .login__error {
+          background: rgba(201, 123, 99, 0.12);
+          border: 1px solid var(--debit);
+          color: var(--debit);
+          padding: 12px 14px;
+          border-radius: 8px;
+          font-size: 13px;
+          margin-bottom: 18px;
+        }
         .field { margin-bottom: 20px; }
         .field__label {
           display: flex;
@@ -186,6 +218,7 @@ export default function AuthFlow() {
         </button>
         <div className="login__title display">Welcome back</div>
         <div className="login__subtitle">Log in to your account</div>
+        {loginError && <div className="login__error">{loginError}</div>}
         <form onSubmit={handleLogin}>
           <div className="field">
             <div className="field__label">

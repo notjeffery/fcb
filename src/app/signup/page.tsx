@@ -16,14 +16,7 @@ import { createClient } from "@/lib/supabase/client";
 // the confirmation link in their inbox. This page handles both cases.
 // ---------------------------------------------------------------------------
 
-const BANK_ROUTING_NUMBER = "084106768"; // placeholder — use the real assigned routing number once chartered/partnered
-
-function generateAccountNumber() {
-  // 10-digit numeric account number.
-  let n = "";
-  for (let i = 0; i < 10; i++) n += Math.floor(Math.random() * 10);
-  return n;
-}
+const BANK_ROUTING_NUMBER = "084106768"; // kept here only for reference — account creation now happens via the database trigger
 
 export default function SignUp() {
   const router = useRouter();
@@ -37,22 +30,6 @@ export default function SignUp() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [needsConfirmation, setNeedsConfirmation] = useState(false);
-
-  async function createAccountRow(userId: string) {
-    // Retry a few times in case of a rare account-number collision
-    // (the unique constraint on accounts.account_number will reject a dupe).
-    for (let attempt = 0; attempt < 5; attempt++) {
-      const { error: insertError } = await supabase.from("accounts").insert({
-        user_id: userId,
-        account_number: generateAccountNumber(),
-        routing_number: BANK_ROUTING_NUMBER,
-        account_type: "checking",
-      });
-      if (!insertError) return true;
-      if (insertError.code !== "23505") throw insertError; // not a uniqueness collision — real error
-    }
-    throw new Error("Could not generate a unique account number — please try again.");
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -90,11 +67,12 @@ export default function SignUp() {
         return;
       }
 
-      // Update phone on the auto-created profile row, then create the account.
+      // Update phone on the auto-created profile row. The account row
+      // (account number, routing number) is created automatically by the
+      // database trigger — no client-side step needed for it.
       if (phone) {
         await supabase.from("profiles").update({ phone }).eq("id", data.user.id);
       }
-      await createAccountRow(data.user.id);
 
       router.push("/dashboard");
     } catch (err) {

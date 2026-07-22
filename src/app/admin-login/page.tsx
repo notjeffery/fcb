@@ -38,11 +38,17 @@ export default function AdminLogin() {
       return;
     }
 
-    const { data: adminRow } = await supabase
+    const { data: adminRow, error: adminCheckError } = await supabase
       .from("admin_users")
       .select("user_id")
       .eq("user_id", data.user.id)
       .maybeSingle();
+
+    if (adminCheckError) {
+      setError(`Couldn't verify admin status: ${adminCheckError.message}`);
+      setSubmitting(false);
+      return;
+    }
 
     if (!adminRow) {
       setError("This account doesn't have admin access.");
