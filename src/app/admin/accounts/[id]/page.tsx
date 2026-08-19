@@ -63,7 +63,7 @@ export default function AccountDetail() {
 
   const [editFullName, setEditFullName] = useState("");
   const [editEmail, setEditEmail] = useState("");
-  const [editPasscode, setEditPasscode] = useState("");
+  const [editPassword, setEditPassword] = useState("");
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState("");
   const [editSuccess, setEditSuccess] = useState(false);
@@ -104,6 +104,13 @@ export default function AccountDetail() {
     loadData();
   }, [accountId]);
 
+  async function toggleFreeze() {
+    if (!account) return;
+    const nextStatus = account.status === "active" ? "frozen" : "active";
+    await supabase.from("accounts").update({ status: nextStatus }).eq("id", account.id);
+    loadData();
+  }
+
   async function handleEditSubmit(e: React.FormEvent) {
     e.preventDefault();
     setEditError("");
@@ -130,7 +137,7 @@ export default function AccountDetail() {
         userId: account.user_id,
         fullName: editFullName || undefined,
         email: editEmail || undefined,
-        passcode: editPasscode || undefined,
+        password: editPassword || undefined,
       }),
     });
 
@@ -142,7 +149,7 @@ export default function AccountDetail() {
       return;
     }
 
-    setEditPasscode("");
+    setEditPassword("");
     setEditSuccess(true);
     setEditSaving(false);
     loadData();
@@ -263,6 +270,33 @@ export default function AccountDetail() {
           <div className="ad-meta">
             {account.profiles?.email} · Acct •••• {account.account_number.slice(-4)} · Routing {account.routing_number}
           </div>
+          <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10 }}>
+            <span
+              style={{
+                fontSize: 11,
+                padding: "3px 8px",
+                borderRadius: 999,
+                border: `1px solid ${account.status === "active" ? "var(--credit)" : "var(--debit)"}`,
+                color: account.status === "active" ? "var(--credit)" : "var(--debit)",
+              }}
+            >
+              {account.status}
+            </span>
+            <button
+              onClick={toggleFreeze}
+              style={{
+                fontSize: 12,
+                background: "none",
+                border: "1px solid var(--panel-line)",
+                borderRadius: 6,
+                padding: "4px 10px",
+                color: "var(--parchment)",
+                cursor: "pointer",
+              }}
+            >
+              {account.status === "active" ? "Freeze account" : "Reactivate account"}
+            </button>
+          </div>
         </div>
         <div className="ad-balance">
           <div className="ad-balance-label">Current balance</div>
@@ -286,12 +320,12 @@ export default function AccountDetail() {
             <input type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} />
           </div>
           <div className="field">
-            <label>Reset passcode (leave blank to keep current)</label>
+            <label>Reset password (leave blank to keep current)</label>
             <input
               type="text"
-              placeholder="New passcode, min. 6 characters"
-              value={editPasscode}
-              onChange={(e) => setEditPasscode(e.target.value)}
+              placeholder="New password, min. 6 characters"
+              value={editPassword}
+              onChange={(e) => setEditPassword(e.target.value)}
               minLength={6}
             />
           </div>

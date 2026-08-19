@@ -1,12 +1,17 @@
 "use client";
 
-import { useState } from "react";
+export const dynamic = "force-dynamic";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 // ---------------------------------------------------------------------------
 // First City Bank — Add Funds
 // Three standard ways US banks let you fund an account: pull from a linked
 // external account (ACH), a debit card top-up, or mobile check deposit.
-// All mocked. Real versions:
+// Blocks the page entirely if the account isn't active. All mocked. Real
+// versions:
 //  - Linked account: needs account verification (Plaid or micro-deposits),
 //    not just a typed-in account number.
 //  - Debit card: needs a real card processor (Stripe, etc.), never store
@@ -63,6 +68,10 @@ function IconCheck() {
 }
 
 export default function AddFunds() {
+  const router = useRouter();
+  const supabase = createClient();
+  const [accountStatus, setAccountStatus] = useState<"loading" | "active" | "restricted" | "error">("loading");
+
   const [method, setMethod] = useState<Method>("menu");
   const [success, setSuccess] = useState(false);
   const [amount, setAmount] = useState("");
@@ -71,6 +80,29 @@ export default function AddFunds() {
   const [cardNumber, setCardNumber] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  useEffect(() => {
+    async function check() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        router.push("/");
+        return;
+      }
+      const { data: acct } = await supabase
+        .from("accounts")
+        .select("status")
+        .eq("user_id", user.id)
+        .single();
+      if (!acct) {
+        setAccountStatus("error");
+        return;
+      }
+      setAccountStatus(acct.status === "active" ? "active" : "restricted");
+    }
+    check();
+  }, []);
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
@@ -78,6 +110,35 @@ export default function AddFunds() {
       setSubmitting(false);
       setSuccess(true);
     }, 1000);
+  }
+
+  if (accountStatus === "loading") {
+    return <main style={{ padding: 24 }}>Loading…</main>;
+  }
+
+  if (accountStatus === "restricted") {
+    return (
+      <main style={{ maxWidth: 420, margin: "0 auto", minHeight: "100vh", padding: "28px 20px" }}>
+        <a href="/dashboard" style={{ color: "var(--brass)", fontSize: 20, textDecoration: "none" }}>←</a>
+        <div style={{ textAlign: "center", paddingTop: 80 }}>
+          <div style={{ fontSize: 40, marginBottom: 16 }}>🔒</div>
+          <div style={{ fontSize: 20, fontFamily: "'Fraunces', Georgia, serif", marginBottom: 10 }}>
+            Account restricted
+          </div>
+          <div style={{ fontSize: 14, color: "var(--parchment-dim)", marginBottom: 28 }}>
+            Adding funds is currently unavailable on this account. Contact
+            support if you believe this is a mistake.
+          </div>
+          <a
+            href="/dashboard"
+            className="btn-primary"
+            style={{ width: "100%", textDecoration: "none", display: "block", textAlign: "center" }}
+          >
+            Back to dashboard
+          </a>
+        </div>
+      </main>
+    );
   }
 
   return (

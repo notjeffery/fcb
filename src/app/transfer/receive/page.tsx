@@ -1,19 +1,17 @@
 "use client";
 
-import { useState } from "react";
+export const dynamic = "force-dynamic";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 // ---------------------------------------------------------------------------
 // First City Bank — Receive Money
-// Shows account + routing number for others to send an ACH/wire transfer
-// to, plus a simple "request money" form (sends a request, doesn't move
-// money itself). Mock data and mock submit — wire up real account numbers
-// and a real notification/request record once the backend exists.
+// Shows real account + routing number for others to send an ACH/wire
+// transfer to, plus a simple "request money" form (sends a request,
+// doesn't move money itself). Blocks the page if the account isn't active.
 // ---------------------------------------------------------------------------
-
-const mockAccount = {
-  accountNumber: "2280515409",
-  routingNumber: "084106768",
-};
 
 function IconBack() {
   return (
@@ -40,12 +38,43 @@ function IconCheck() {
 }
 
 export default function ReceiveMoney() {
+  const router = useRouter();
+  const supabase = createClient();
+  const [accountStatus, setAccountStatus] = useState<"loading" | "active" | "restricted" | "error">("loading");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [routingNumber, setRoutingNumber] = useState("");
+
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [requestSent, setRequestSent] = useState(false);
   const [contact, setContact] = useState("");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    async function load() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        router.push("/");
+        return;
+      }
+      const { data: acct } = await supabase
+        .from("accounts")
+        .select("status, account_number, routing_number")
+        .eq("user_id", user.id)
+        .single();
+      if (!acct) {
+        setAccountStatus("error");
+        return;
+      }
+      setAccountNumber(acct.account_number);
+      setRoutingNumber(acct.routing_number);
+      setAccountStatus(acct.status === "active" ? "active" : "restricted");
+    }
+    load();
+  }, []);
 
   function copy(field: "account" | "routing", value: string) {
     navigator.clipboard?.writeText(value);
@@ -62,6 +91,35 @@ export default function ReceiveMoney() {
       setSubmitting(false);
       setRequestSent(true);
     }, 900);
+  }
+
+  if (accountStatus === "loading") {
+    return <main style={{ padding: 24 }}>Loading…</main>;
+  }
+
+  if (accountStatus === "restricted") {
+    return (
+      <main style={{ maxWidth: 420, margin: "0 auto", minHeight: "100vh", padding: "28px 20px" }}>
+        <a href="/dashboard" style={{ color: "var(--brass)", fontSize: 20, textDecoration: "none" }}>←</a>
+        <div style={{ textAlign: "center", paddingTop: 80 }}>
+          <div style={{ fontSize: 40, marginBottom: 16 }}>🔒</div>
+          <div style={{ fontSize: 20, fontFamily: "'Fraunces', Georgia, serif", marginBottom: 10 }}>
+            Account restricted
+          </div>
+          <div style={{ fontSize: 14, color: "var(--parchment-dim)", marginBottom: 28 }}>
+            Receiving money is currently unavailable on this account. Contact
+            support if you believe this is a mistake.
+          </div>
+          <a
+            href="/dashboard"
+            className="btn-primary"
+            style={{ width: "100%", textDecoration: "none", display: "block", textAlign: "center" }}
+          >
+            Back to dashboard
+          </a>
+        </div>
+      </main>
+    );
   }
 
   return (
@@ -186,8 +244,8 @@ export default function ReceiveMoney() {
             <div className="details-row">
               <span className="details-label">Account number</span>
               <span className="details-value">
-                {mockAccount.accountNumber}
-                <button className="copy-btn" onClick={() => copy("account", mockAccount.accountNumber)} aria-label="Copy account number">
+                {accountNumber}
+                <button className="copy-btn" onClick={() => copy("account", accountNumber)} aria-label="Copy account number">
                   <IconCopy />
                 </button>
                 {copiedField === "account" && <span className="copied-tag">Copied</span>}
@@ -196,8 +254,8 @@ export default function ReceiveMoney() {
             <div className="details-row">
               <span className="details-label">Routing number</span>
               <span className="details-value">
-                {mockAccount.routingNumber}
-                <button className="copy-btn" onClick={() => copy("routing", mockAccount.routingNumber)} aria-label="Copy routing number">
+                {routingNumber}
+                <button className="copy-btn" onClick={() => copy("routing", routingNumber)} aria-label="Copy routing number">
                   <IconCopy />
                 </button>
                 {copiedField === "routing" && <span className="copied-tag">Copied</span>}

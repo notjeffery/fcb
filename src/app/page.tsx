@@ -14,16 +14,22 @@ import { createClient } from "@/lib/supabase/client";
 // The marketing/landing content lives at /about instead.
 // ---------------------------------------------------------------------------
 
-const STEP = { SPLASH: 0, WELCOME: 1, LOGIN: 2 };
+const STEP = { SPLASH: 0, WELCOME: 1, LOGIN: 2, OTP: 3 };
 
 export default function AuthFlow() {
   const router = useRouter();
   const supabase = createClient();
   const [step, setStep] = useState(STEP.SPLASH);
-  const [accountNumber, setAccountNumber] = useState("");
-  const [passcode, setPasscode] = useState("");
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [loginError, setLoginError] = useState("");
+
+  const [pendingEmail, setPendingEmail] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpError, setOtpError] = useState("");
+  const [otpSubmitting, setOtpSubmitting] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   useEffect(() => {
     if (step !== STEP.SPLASH) return;
@@ -36,35 +42,108 @@ export default function AuthFlow() {
     setLoginError("");
     setSubmitting(true);
 
-    const { data: email, error: lookupError } = await supabase.rpc("get_email_by_account_number", {
-      p_account_number: accountNumber,
-    });
+    const trimmed = identifier.trim();
+    let email = trimmed;
 
-    if (lookupError) {
-      setLoginError(`Lookup error: ${lookupError.message}`);
-      setSubmitting(false);
-      return;
-    }
+    // If it doesn't look like an email, treat it as an account number and
+    // look up the email behind it.
+    if (!trimmed.includes("@")) {
+      const { data: lookedUpEmail, error: lookupError } = await supabase.rpc("get_email_by_account_number", {
+        p_account_number: trimmed,
+      });
 
-    if (!email) {
-      setLoginError("We couldn't find an account with that number.");
-      setSubmitting(false);
-      return;
+      if (lookupError) {
+        setLoginError(`Lookup error: ${lookupError.message}`);
+        setSubmitting(false);
+        return;
+      }
+
+      if (!lookedUpEmail) {
+        setLoginError("We couldn't find an account with that email or account number.");
+        setSubmitting(false);
+        return;
+      }
+
+      email = lookedUpEmail;
     }
 
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email,
-      password: passcode,
+      password,
     });
 
     if (signInError) {
-      setLoginError("Incorrect account number or passcode.");
+      setLoginError("Incorrect email/account number or password.");
       setSubmitting(false);
+      return;
+    }
+
+    // OTP step temporarily disabled until SMTP is set up in Supabase —
+    // see the commented block below to re-enable once that's done.
+    setSubmitting(false);
+    router.push("/dashboard");
+
+    /*
+    // Password confirmed — now send a one-time code to the account's email
+    // as a second check before granting access.
+    const { error: otpSendError } = await supabase.auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: false },
+    });
+
+    setSubmitting(false);
+
+    if (otpSendError) {
+      setLoginError(`Couldn't send verification code: ${otpSendError.message}`);
+      return;
+    }
+
+    setPendingEmail(email);
+    setResendCooldown(30);
+    setStep(STEP.OTP);
+    */
+  }
+
+  async function handleVerifyOtp(e: React.FormEvent) {
+    e.preventDefault();
+    setOtpError("");
+    setOtpSubmitting(true);
+
+    const { error: verifyError } = await supabase.auth.verifyOtp({
+      email: pendingEmail,
+      token: otpCode,
+      type: "email",
+    });
+
+    setOtpSubmitting(false);
+
+    if (verifyError) {
+      setOtpError("That code didn't work — check it and try again.");
       return;
     }
 
     router.push("/dashboard");
   }
+
+  async function handleResendOtp() {
+    if (resendCooldown > 0) return;
+    setOtpError("");
+    const { error } = await supabase.auth.signInWithOtp({
+      email: pendingEmail,
+      options: { shouldCreateUser: false },
+    });
+    if (error) {
+      setOtpError(`Couldn't resend code: ${error.message}`);
+      return;
+    }
+    setResendCooldown(30);
+  }
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendCooldown]);
 
   return (
     <main className="frame">
@@ -195,6 +274,38 @@ export default function AuthFlow() {
         .field input:focus { outline: none; border-color: var(--brass); }
         .login__submit { width: 100%; margin-top: 8px; }
         .login__submit:disabled { opacity: 0.6; }
+
+        .otp__digits {
+          width: 100%;
+          padding: 16px;
+          background: var(--panel);
+          border: 1px solid var(--panel-line);
+          border-radius: 8px;
+          color: var(--parchment);
+          font-size: 22px;
+          letter-spacing: 0.4em;
+          text-align: center;
+          font-family: 'IBM Plex Mono', monospace;
+        }
+        .otp__digits:focus { outline: none; border-color: var(--brass); }
+        .otp__resend {
+          text-align: center;
+          font-size: 13px;
+          color: var(--parchment-dim);
+          margin-top: 16px;
+        }
+        .otp__resend button {
+          background: none;
+          border: none;
+          color: var(--brass);
+          cursor: pointer;
+          font-size: 13px;
+          padding: 0;
+        }
+        .otp__resend button:disabled {
+          color: var(--parchment-dim);
+          cursor: default;
+        }
       `}</style>
 
       <div className={`screen splash ${step === STEP.SPLASH ? "is-active" : ""}`}>
@@ -230,28 +341,26 @@ export default function AuthFlow() {
         <form onSubmit={handleLogin}>
           <div className="field">
             <div className="field__label">
-              <span>Account number</span>
+              <span>Email or account number</span>
             </div>
             <input
               type="text"
-              inputMode="numeric"
-              placeholder="Enter your account number"
-              value={accountNumber}
-              onChange={(e) => setAccountNumber(e.target.value)}
+              placeholder="Enter your email or account number"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
               required
             />
           </div>
           <div className="field">
             <div className="field__label">
-              <span>Passcode</span>
-              <a href="#">Forgot passcode</a>
+              <span>Password</span>
+              <a href="#">Forgot password</a>
             </div>
             <input
               type="password"
-              inputMode="numeric"
-              placeholder="Enter your passcode"
-              value={passcode}
-              onChange={(e) => setPasscode(e.target.value)}
+              placeholder="Enter your password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               required
             />
           </div>
@@ -259,6 +368,41 @@ export default function AuthFlow() {
             {submitting ? "Logging in…" : "Log in"}
           </button>
         </form>
+      </div>
+
+      <div className={`screen ${step === STEP.OTP ? "is-active" : ""}`}>
+        <button className="login__back" onClick={() => setStep(STEP.LOGIN)}>
+          ←
+        </button>
+        <div className="login__title display">Verify it&apos;s you</div>
+        <div className="login__subtitle">
+          Enter the code we sent to {pendingEmail}
+        </div>
+        {otpError && <div className="login__error">{otpError}</div>}
+        <form onSubmit={handleVerifyOtp}>
+          <div className="field">
+            <input
+              className="otp__digits"
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              placeholder="000000"
+              value={otpCode}
+              onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+              required
+              autoFocus
+            />
+          </div>
+          <button className="login__submit btn-primary" type="submit" disabled={otpSubmitting}>
+            {otpSubmitting ? "Verifying…" : "Verify & log in"}
+          </button>
+        </form>
+        <div className="otp__resend">
+          Didn&apos;t get a code?{" "}
+          <button onClick={handleResendOtp} disabled={resendCooldown > 0}>
+            {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend code"}
+          </button>
+        </div>
       </div>
     </main>
   );

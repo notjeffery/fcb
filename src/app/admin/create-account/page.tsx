@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 
 // ---------------------------------------------------------------------------
 // First City Bank — Admin: Create account
-// Lets an admin set up a full account manually: name, email, passcode,
+// Lets an admin set up a full account manually: name, email, password,
 // account number, and an opening balance. The opening balance is posted
 // as a real transaction (not a raw balance edit) so it shows up in the
 // account's history from day one.
@@ -26,7 +26,7 @@ export default function CreateAccount() {
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
-  const [passcode, setPasscode] = useState("");
+  const [password, setPassword] = useState("");
   const [accountNumber, setAccountNumber] = useState(generateAccountNumber());
   const [openingBalance, setOpeningBalance] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -58,7 +58,7 @@ export default function CreateAccount() {
       body: JSON.stringify({
         fullName,
         email,
-        passcode,
+        password,
         accountNumber,
         openingBalance: openingBalance ? parseFloat(openingBalance) : 0,
       }),
@@ -131,11 +131,11 @@ export default function CreateAccount() {
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         </div>
         <div className="field">
-          <label>Passcode (min. 6 characters)</label>
+          <label>Password (min. 6 characters)</label>
           <input
             type="text"
-            value={passcode}
-            onChange={(e) => setPasscode(e.target.value)}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
             minLength={6}
             required
           />

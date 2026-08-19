@@ -1,11 +1,16 @@
 "use client";
 
-import { useState } from "react";
+export const dynamic = "force-dynamic";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 // ---------------------------------------------------------------------------
 // First City Bank — Send Money
 // Internal transfer (another First City Bank account) or external ACH
 // transfer (routing + account number), with a review step before confirming.
+// Blocks the form entirely if the account isn't active (frozen/closed).
 // Submission is mocked — wire up to a real transfer/ledger endpoint later,
 // and validate routing numbers server-side (ABA checksum) before trusting them.
 // ---------------------------------------------------------------------------
@@ -29,6 +34,10 @@ function IconCheck() {
 }
 
 export default function SendMoney() {
+  const router = useRouter();
+  const supabase = createClient();
+  const [accountStatus, setAccountStatus] = useState<"loading" | "active" | "restricted" | "error">("loading");
+
   const [step, setStep] = useState(STEP.FORM);
   const [recipientType, setRecipientType] = useState<"internal" | "external">("internal");
   const [accountNumber, setAccountNumber] = useState("");
@@ -36,6 +45,29 @@ export default function SendMoney() {
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    async function check() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        router.push("/");
+        return;
+      }
+      const { data: acct } = await supabase
+        .from("accounts")
+        .select("status")
+        .eq("user_id", user.id)
+        .single();
+      if (!acct) {
+        setAccountStatus("error");
+        return;
+      }
+      setAccountStatus(acct.status === "active" ? "active" : "restricted");
+    }
+    check();
+  }, []);
 
   function handleContinue(e: React.FormEvent) {
     e.preventDefault();
@@ -51,6 +83,35 @@ export default function SendMoney() {
       setSubmitting(false);
       setStep(STEP.SUCCESS);
     }, 1000);
+  }
+
+  if (accountStatus === "loading") {
+    return <main style={{ padding: 24 }}>Loading…</main>;
+  }
+
+  if (accountStatus === "restricted") {
+    return (
+      <main style={{ maxWidth: 420, margin: "0 auto", minHeight: "100vh", padding: "28px 20px" }}>
+        <a href="/dashboard" style={{ color: "var(--brass)", fontSize: 20, textDecoration: "none" }}>←</a>
+        <div style={{ textAlign: "center", paddingTop: 80 }}>
+          <div style={{ fontSize: 40, marginBottom: 16 }}>🔒</div>
+          <div style={{ fontSize: 20, fontFamily: "'Fraunces', Georgia, serif", marginBottom: 10 }}>
+            Account restricted
+          </div>
+          <div style={{ fontSize: 14, color: "var(--parchment-dim)", marginBottom: 28 }}>
+            Sending money is currently unavailable on this account. Contact
+            support if you believe this is a mistake.
+          </div>
+          <a
+            href="/dashboard"
+            className="btn-primary"
+            style={{ width: "100%", textDecoration: "none", display: "block", textAlign: "center" }}
+          >
+            Back to dashboard
+          </a>
+        </div>
+      </main>
+    );
   }
 
   return (

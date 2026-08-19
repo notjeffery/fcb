@@ -28,8 +28,8 @@ export default function SignUp() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [passcode, setPasscode] = useState("");
-  const [confirmPasscode, setConfirmPasscode] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [needsConfirmation, setNeedsConfirmation] = useState(false);
@@ -38,12 +38,12 @@ export default function SignUp() {
     e.preventDefault();
     setError("");
 
-    if (passcode !== confirmPasscode) {
-      setError("Passcodes don't match.");
+    if (password !== confirmPassword) {
+      setError("Passwords don't match.");
       return;
     }
-    if (passcode.length < 6) {
-      setError("Passcode must be at least 6 characters.");
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
       return;
     }
 
@@ -51,7 +51,7 @@ export default function SignUp() {
     try {
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
-        password: passcode,
+        password,
         options: {
           data: { full_name: fullName },
         },
@@ -165,23 +165,21 @@ export default function SignUp() {
               <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} required />
             </div>
             <div className="field">
-              <label>Create a passcode</label>
+              <label>Create a password</label>
               <input
                 type="password"
-                inputMode="numeric"
-                value={passcode}
-                onChange={(e) => setPasscode(e.target.value)}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 minLength={6}
                 required
               />
             </div>
             <div className="field">
-              <label>Confirm passcode</label>
+              <label>Confirm password</label>
               <input
                 type="password"
-                inputMode="numeric"
-                value={confirmPasscode}
-                onChange={(e) => setConfirmPasscode(e.target.value)}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
                 minLength={6}
                 required
               />

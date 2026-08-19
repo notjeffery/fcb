@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // ---------------------------------------------------------------------------
 // POST /api/admin/update-account
 // Verifies the caller is a signed-in admin, then lets them change another
-// user's full name, email, and/or passcode. Email and passcode changes go
+// user's full name, email, and/or password. Email and password changes go
 // through the Supabase Admin API (service role) since a regular user
 // session can never modify someone else's auth credentials — only the
 // admin API can do that, which is why this route (and its verification
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Not authorized." }, { status: 403 });
   }
 
-  const { userId, fullName, email, passcode } = await request.json();
+  const { userId, fullName, email, password } = await request.json();
 
   if (!userId) {
     return NextResponse.json({ error: "Missing userId." }, { status: 400 });
@@ -53,10 +53,10 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient();
 
   // Update auth credentials (email and/or password) via the Admin API.
-  if (email || passcode) {
+  if (email || password) {
     const { error: authUpdateError } = await admin.auth.admin.updateUserById(userId, {
       ...(email ? { email, email_confirm: true } : {}),
-      ...(passcode ? { password: passcode } : {}),
+      ...(password ? { password } : {}),
     });
     if (authUpdateError) {
       return NextResponse.json({ error: authUpdateError.message }, { status: 400 });

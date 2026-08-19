@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 // ---------------------------------------------------------------------------
 // First City Bank — Profile
 // Real data now: profile + account info from Supabase. Full name, email,
-// and passcode are editable directly by the signed-in user. Email changes
+// and password are editable directly by the signed-in user. Email changes
 // go through Supabase's normal confirmation-email flow — the new address
 // isn't active until the user clicks the link sent to it.
 // ---------------------------------------------------------------------------
@@ -136,12 +136,12 @@ export default function Profile() {
   const [savingField, setSavingField] = useState(false);
   const [fieldError, setFieldError] = useState("");
 
-  const [passcodeMode, setPasscodeMode] = useState(false);
-  const [newPasscode, setNewPasscode] = useState("");
-  const [confirmPasscode, setConfirmPasscode] = useState("");
-  const [passcodeSaving, setPasscodeSaving] = useState(false);
-  const [passcodeError, setPasscodeError] = useState("");
-  const [passcodeSuccess, setPasscodeSuccess] = useState(false);
+  const [passwordMode, setPasswordMode] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
 
   const [copied, setCopied] = useState(false);
   const [biometric, setBiometric] = useState(true);
@@ -228,33 +228,33 @@ export default function Profile() {
     }
   }
 
-  async function savePasscode(e: React.FormEvent) {
+  async function savePassword(e: React.FormEvent) {
     e.preventDefault();
-    setPasscodeError("");
-    setPasscodeSuccess(false);
+    setPasswordError("");
+    setPasswordSuccess(false);
 
-    if (newPasscode !== confirmPasscode) {
-      setPasscodeError("Passcodes don't match.");
+    if (newPassword !== confirmPassword) {
+      setPasswordError("Passwords don't match.");
       return;
     }
-    if (newPasscode.length < 6) {
-      setPasscodeError("Passcode must be at least 6 characters.");
+    if (newPassword.length < 6) {
+      setPasswordError("Password must be at least 6 characters.");
       return;
     }
 
-    setPasscodeSaving(true);
-    const { error } = await supabase.auth.updateUser({ password: newPasscode });
-    setPasscodeSaving(false);
+    setPasswordSaving(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setPasswordSaving(false);
 
     if (error) {
-      setPasscodeError(error.message);
+      setPasswordError(error.message);
       return;
     }
 
-    setNewPasscode("");
-    setConfirmPasscode("");
-    setPasscodeSuccess(true);
-    setPasscodeMode(false);
+    setNewPassword("");
+    setConfirmPassword("");
+    setPasswordSuccess(true);
+    setPasswordMode(false);
   }
 
   async function handleSignOut() {
@@ -339,12 +339,12 @@ export default function Profile() {
         }
         .toggle[data-on="true"] .toggle__knob { transform: translateX(18px); }
 
-        .passcode-form { padding: 14px 16px; }
-        .passcode-form input {
+        .password-form { padding: 14px 16px; }
+        .password-form input {
           width: 100%; padding: 10px 12px; background: var(--ink); border: 1px solid var(--panel-line);
           border-radius: 6px; color: var(--parchment); font-size: 14px; margin-bottom: 10px;
         }
-        .passcode-success { font-size: 12px; color: var(--credit); padding: 0 16px 14px; }
+        .password-success { font-size: 12px; color: var(--credit); padding: 0 16px 14px; }
 
         .signout { width: 100%; margin-top: 28px; padding: 14px; background: transparent; border: 1px solid var(--debit); color: var(--debit); border-radius: 10px; font-size: 15px; cursor: pointer; }
         .app-version { text-align: center; font-size: 11px; color: var(--parchment-dim); margin-top: 20px; }
@@ -425,45 +425,45 @@ export default function Profile() {
 
       <div className="section-label">Security</div>
       <div className="list">
-        {!passcodeMode ? (
-          <div className="row" onClick={() => { setPasscodeMode(true); setPasscodeSuccess(false); }}>
+        {!passwordMode ? (
+          <div className="row" onClick={() => { setPasswordMode(true); setPasswordSuccess(false); }}>
             <div className="row__left">
-              <div className="row__label">Change passcode</div>
+              <div className="row__label">Change password</div>
             </div>
             <span className="row__chevron"><IconChevron /></span>
           </div>
         ) : (
-          <form className="passcode-form" onSubmit={savePasscode}>
-            {passcodeError && <div className="field-error" style={{ marginBottom: 10 }}>{passcodeError}</div>}
+          <form className="password-form" onSubmit={savePassword}>
+            {passwordError && <div className="field-error" style={{ marginBottom: 10 }}>{passwordError}</div>}
             <input
               type="password"
-              placeholder="New passcode"
-              value={newPasscode}
-              onChange={(e) => setNewPasscode(e.target.value)}
+              placeholder="New password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
               minLength={6}
             />
             <input
               type="password"
-              placeholder="Confirm new passcode"
-              value={confirmPasscode}
-              onChange={(e) => setConfirmPasscode(e.target.value)}
+              placeholder="Confirm new password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
               minLength={6}
             />
             <div style={{ display: "flex", gap: 10 }}>
-              <button className="row__edit-save" type="submit" disabled={passcodeSaving}>
-                {passcodeSaving ? "Saving…" : "Save"}
+              <button className="row__edit-save" type="submit" disabled={passwordSaving}>
+                {passwordSaving ? "Saving…" : "Save"}
               </button>
               <button
                 className="row__edit-cancel"
                 type="button"
-                onClick={() => { setPasscodeMode(false); setNewPasscode(""); setConfirmPasscode(""); }}
+                onClick={() => { setPasswordMode(false); setNewPassword(""); setConfirmPassword(""); }}
               >
                 Cancel
               </button>
             </div>
           </form>
         )}
-        {passcodeSuccess && <div className="passcode-success">Passcode updated.</div>}
+        {passwordSuccess && <div className="password-success">Password updated.</div>}
         <div className="row">
           <div className="row__left">
             <div className="row__label">Biometric login</div>

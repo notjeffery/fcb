@@ -119,7 +119,7 @@ async function main() {
 
   console.log("\nDone.");
   console.log(`Account number: ${account.account_number}`);
-  console.log(`Passcode: ${ACCOUNT.password}`);
+  console.log(`Password: ${ACCOUNT.password}`);
   console.log(`Final balance: $${finalBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}`);
 }
 

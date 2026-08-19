@@ -48,10 +48,10 @@ export async function POST(request: NextRequest) {
   }
 
   // Caller confirmed as admin — now safe to use the privileged client.
-  const { fullName, email, passcode, accountNumber, openingBalance } = await request.json();
+  const { fullName, email, password, accountNumber, openingBalance } = await request.json();
 
-  if (!fullName || !email || !passcode || !accountNumber) {
-    console.error("Create account: missing required fields.", { fullName, email, passcodeProvided: !!passcode, accountNumber });
+  if (!fullName || !email || !password || !accountNumber) {
+    console.error("Create account: missing required fields.", { fullName, email, passwordProvided: !!password, accountNumber });
     return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
   }
 
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
   // this specific number instead of generating a random one.
   const { data: newUser, error: createUserError } = await admin.auth.admin.createUser({
     email,
-    password: passcode,
+    password,
     email_confirm: true, // admin-created accounts skip email verification
     user_metadata: { full_name: fullName, account_number: accountNumber },
   });
